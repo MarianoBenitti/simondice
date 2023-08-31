@@ -11,14 +11,16 @@
  *
  * |   Fecha    | Descripcion                                    |
  * |:----------:|:-----------------------------------------------|
- * | 01/01/2023 | Creacion del documento                         |
- *
+ * | 29/08/2023 | Creacion del documento                         |
+ * | 30/08/2023 | Prueba de botones                              |
+ *     
  */
 
 
 
 /* Includes ------------------------------------------------------------------*/
 #include "mbed.h"
+#include "stdlib.h"
 /* END Includes --------------------------------------------------------------*/
 
 
@@ -28,7 +30,7 @@
 
 /* define --------------------------------------------------------------------*/
 typedef enum{UP,FALLING,RISSING,DOWN}e_estadoB;
-
+typedef enum{SECUENCIAINICIAL,GENSEC,PREPARACION,JUGANDO,FINAL}e_simonDice;
 /* END define ----------------------------------------------------------------*/
 
 /* hardware configuration ----------------------------------------------------*/
@@ -48,14 +50,16 @@ BusOut LEDS(PB_6,PB_7,PB_14,PB_15);
 Timer timerGen;//timer general del programa
 uint32_t tAnt=0;//tiempo anterior tomado
 uint32_t tAntBot=0;//tiempo anterior tomado de los botones
-e_estadoB e_estadoBotones[4];
-
+e_estadoB e_estadoBotones[4];//estado actual de cada boton
+uint8_t secuencia[12];
+uint8_t lvl=0;
 uint16_t i=0;
 /* END Global variables ------------------------------------------------------*/
 
 
 /* Function prototypes user code ----------------------------------------------*/
-
+//comprueba el estado de los botones,y lo carga en la enumeracion correspondiente al boton
+void ComprobarBotones();
 /* END Function prototypes user code ------------------------------------------*/
 
 int main()
@@ -76,9 +80,18 @@ e_estadoBotones[3]=UP;
             tAnt=timerGen.read_ms();
             LED = !LED;
         }
-        
-        
-        if(timerGen.read_ms()-tAntBot>=40){
+
+        ComprobarBotones();
+
+    }
+
+/* END User code -------------------------------------------------------------*/
+}
+
+
+void ComprobarBotones(){
+    LEDS=~BOTONES;//INICIALIZAMOS LOS LEDS AL ESTADO ACTUAL
+    if(timerGen.read_ms()-tAntBot>=40){
             tAntBot=timerGen.read_ms();
             for(i=0;i<4;i++){
                 switch(e_estadoBotones[i]){
@@ -91,14 +104,14 @@ e_estadoBotones[3]=UP;
                     case FALLING:
                             if(BOTONES & (1<<i)){
                                 e_estadoBotones[i]=DOWN;
-                                
+                                //aqui deberiamos tomar el boton presionado
                             }
                         break;
                     case DOWN:
                                 if((BOTONES & (1<<i))==0){
                                      e_estadoBotones[i]=RISSING;
                                  }
-                                LEDS=BOTONES | (1<<i);
+                                LEDS=~BOTONES | (1<<i);//COLOCAMOS EL LED ENCENDIDO SI ESTA PRESIONADO
                         break;    
                     case RISSING:if((BOTONES & (1<<i))==0){
                                      e_estadoBotones[i]=UP;
@@ -110,10 +123,4 @@ e_estadoBotones[3]=UP;
 
             }
         }
-        
-    }
-
-/* END User code -------------------------------------------------------------*/
 }
-
-
