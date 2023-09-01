@@ -26,14 +26,14 @@
 
 /* typedef -------------------------------------------------------------------*/
 typedef enum{UP,FALLING,RISSING,DOWN}e_estadoB;
-typedef enum{SECUENCIAINICIAL,GENSEC,PREPARACION,JUGANDO,FINAL}e_simonDice;
+typedef enum{SECUENCIAINICIAL,GENSEC,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
 typedef union{
     struct {
        uint8_t b0:1;//se utiliza para verificar si se esta cambiando el nivel
-       uint8_t b1:1;
-       uint8_t b2:1;
-       uint8_t b3:1;
-       uint8_t b4:1;
+       uint8_t b1:1;//se utiliza para saber cuando mostrar la cuenta regresiva
+       uint8_t b2:1;//se utiliza para saber cuando mostrar la secuencia
+       uint8_t b3:1;//se utiliza para saber si se gano o se perdio
+       uint8_t b4:1;//se usa para saber si mostrar el nivel
        uint8_t b5:1;
        uint8_t b6:1;
        uint8_t b7:1;
@@ -141,16 +141,23 @@ botones[i].presion=0;
                 break;
             case GENSEC:srand(timerGen.read_ms());
                         for(i=0;i<lvl;i++){
+                            secuencia[i]=rand() % 4;
                             while (i!=0 && secuencia[i]==secuencia[i-1]){//evitamos que los colores se repitan
                                 secuencia[i]=rand() % 4;
                             }
                         }
-                        e_estadoJuego=PREPARACION;
-                        tAntJuego=timerGen.read_ms();
-                        LEDS=~lvl;
+                        e_estadoJuego=MSECUENCIA;
+                        banderas.bit.b4=1;
+                        lvlAct=1;
                 break;
-            case PREPARACION:
+            case MSECUENCIA:
                     //MUESTREO DEL NIVEL
+                    if(banderas.bit.b4){
+                        LEDS=~lvlAct;
+                        banderas.bit.b4=0;
+                        tAntJuego=timerGen.read_ms();
+                    }
+                    //SE ENCIENDEN TODOS LOS LEDS
                     if(timerGen.read_ms()-tAntJuego>=1000 && banderas.bit.b1==0 && banderas.bit.b2==0){
                         banderas.bit.b1=1;
                         LEDS=0b0000;//encendemos todos los leds
@@ -162,32 +169,97 @@ botones[i].presion=0;
                         LEDS=LEDS | (1<<j);//hacemos la cuenta regresiva(ponemos en 1 cada led)
                         j++;
                         if(j==4){
-                            banderas.bit.b1=0;
-                            banderas.bit.b2=1;
+                            banderas.bit.b1=0;//se finaliza la cuenta regresiva
+                            banderas.bit.b2=1;//para mostrar la secuencia
                             j=0;
                             aux=0;
                         }
                         tAntJuego=timerGen.read_ms();
                     }
                     //MUESTREO DE LA SECUENCIA
-                    lvlAct=4;
-                    if (banderas.bit.b2 && timerGen.read_ms()-tAntJuego>=aux){
-                        srand(timerGen.read_ms());
-                        aux=rand()%(500+1)+100;//se utiliza la auxiliar para guardar el tiempo aleatorio
+                    
+                    if (banderas.bit.b2 && (timerGen.read_ms()-tAntJuego>=aux)){
                         LEDS=0b1111;//apagamos todos los leds
-                        LEDS=~(LEDS & 1<<secuencia[j]);
-                        j++;
-                        if(j==lvlAct){
-                           e_estadoJuego=JUGANDO;     
+                        if(j==lvlAct){//si ya se mostro toda la secuencia se pasa a preparacion
+                            e_estadoJuego=PREPARACION; 
+                            banderas.bit.b2=0; 
+                        }else{
+                            srand(timerGen.read_ms());
+                            aux=rand()%(500+1)+100;//se utiliza la auxiliar para guardar el tiempo aleatorio
+                            LEDS=~(LEDS & 1<<secuencia[j]);
+                            j++;
                         }
                         tAntJuego=timerGen.read_ms();
                     }
                     
-
+                break;
+            case PREPARACION:
+                for(i=0;i<4;i++){
+                    botones[i].presion=0;//borramos la basura de los botones
+                    j=0;//inicializamos j que usaremos para saber la posicion de la secuencia
+                }
+                e_estadoJuego=JUGANDO;
+                tAntJuego=timerGen.read_ms();
                 break;
             case JUGANDO:
+                //SE VERIFICA QUE NO PASARON LOS 3 SEGUNDOS LIMITE
+                if(timerGen.read_ms()-tAntJuego>=3000){
+                    banderas.bit.b3=0;
+                    e_estadoJuego=FINAL;
+                    LEDS=0b0000;//encendemos todos los leds para la secuencia final
+                }
+                //SE VERIFICA QUE BOTON SE PRESIONO Y SE LO COMPARA CON LA SECUENCIA
+                for(i=0;i<4;i++){
+                    if(botones[i].presion){
+                        tAntJuego=timerGen.read_ms();
+                        botones[i].presion=0;//anulo la presion del boton
+                        if(i!=secuencia[j]){
+                            e_estadoJuego =FINAL;
+                            LEDS=0b0000;//encendemos todos los leds para la secuencia final
+                            banderas.bit.b3=0;
+                            j=0;
+                            
+                        }else{
+                            
+                            j++;//pasamos a comparar la siguiente parte de la secuencia
+                            if(j==(lvl)){//si se supero el ultimo nivel se termina el juego
+                                e_estadoJuego=FINAL;
+                                LEDS=0b0000;//encendemos todos los leds para la secuencia final
+                                banderas.bit.b3=1;
+                                j=0;
+                            }
+                            if(j==lvlAct){//si se supero el nivel actual se vuelve a mostrar la secuencia
+                                lvlAct++;
+                                banderas.bit.b4=1;//para mostrar el nuevo nivel
+                                e_estadoJuego=MSECUENCIA;
+                            }
+                        }
+                    }
+                }
+                
                 break;
-            case FINAL:
+            case FINAL:if(banderas.bit.b3){
+                            //si se gano
+                            if(timerGen.read_ms()-tAntJuego>=500){
+                                tAntJuego=timerGen.read_ms();
+                                j++;
+                                LEDS=~LEDS;
+                            }
+                            if(j==4){
+                            e_estadoJuego=SECUENCIAINICIAL;
+                            }
+                        }else{
+                            //si se perdio
+                            if(timerGen.read_ms()-tAntJuego>=100){
+                                tAntJuego=timerGen.read_ms();
+                                j++;
+                                LEDS=~LEDS;
+                            }
+                            if(j==20){
+                            e_estadoJuego=SECUENCIAINICIAL;
+                            }
+                        }
+                        
                 break;
             default:e_estadoJuego=SECUENCIAINICIAL;
                 break;
