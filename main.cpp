@@ -26,7 +26,7 @@
 
 /* typedef -------------------------------------------------------------------*/
 typedef enum{UP,FALLING,RISSING,DOWN}e_estadoB;
-typedef enum{SECUENCIAINICIAL,MOSTRARCANTNIVEL,SELNIVEL,GENSEC,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
+typedef enum{SECUENCIAINICIAL,MOSTRARCANTNIVEL,SELNIVEL,GENSEC,MNIVEL,ENCLEDS,CUENTAATRAS,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
 typedef union{
     struct {
        uint8_t b0:1;//se utiliza para verificar si se esta cambiando el nivel
@@ -156,43 +156,43 @@ botones[i].presion=0;
                                 secuencia[i]=rand() % 4;
                             }
                         }
-                        e_estadoJuego=MSECUENCIA;
-                        banderas.bit.b4=1;
+                        e_estadoJuego=MNIVEL;
+                        tAntJuego=timerGen.read_ms();
                         lvlAct=1;
                 break;
-            case MSECUENCIA:
-                    //MUESTREO DEL NIVEL
-                    if(banderas.bit.b4){
+            case MNIVEL://se muestra el nivel actual
                         LEDS=~lvlAct;
-                        banderas.bit.b4=0;
-                        tAntJuego=timerGen.read_ms();
-                    }
-                    //SE ENCIENDEN TODOS LOS LEDS
-                    if(timerGen.read_ms()-tAntJuego>=1000 && banderas.bit.b1==0 && banderas.bit.b2==0){
-                        banderas.bit.b1=1;
-                        LEDS=0b0000;//encendemos todos los leds
+                        if(timerGen.read_ms()-tAntJuego>=2000){
+                            e_estadoJuego=MSECUENCIA;
+                            tAntJuego=timerGen.read_ms();
+                        }
+                break;
+            case ENCLEDS:
+                    LEDS=0b0000;//encendemos todos los leds
+                    if(timerGen.read_ms()-tAntJuego>=1000){
                         j=0;
                         tAntJuego=timerGen.read_ms();
                     }
-                    //CUENTA REGRESIVA
-                    if(banderas.bit.b1 && timerGen.read_ms()-tAntJuego>=1000){
+                    break;
+            case CUENTAATRAS:
+                 if(timerGen.read_ms()-tAntJuego>=1000){
                         LEDS=LEDS | (1<<j);//hacemos la cuenta regresiva(ponemos en 1 cada led)
                         j++;
                         if(j>=4){
-                            banderas.bit.b1=0;//se finaliza la cuenta regresiva
                             banderas.bit.b2=1;//para mostrar la secuencia
                             j=0;
                             aux=1000;//esperamos 1000 ms antes de mostrar la secuencia
+                            e_estadoJuego=MSECUENCIA;
                         }
                         tAntJuego=timerGen.read_ms();
                     }
+                break;
+            case MSECUENCIA:
                     //MUESTREO DE LA SECUENCIA
-                    
-                    if (banderas.bit.b2 && (timerGen.read_ms()-tAntJuego>=aux)){
+                    if (timerGen.read_ms()-tAntJuego>=aux){
                         LEDS=0b1111;//apagamos todos los leds
                         if(j==lvlAct){//si ya se mostro toda la secuencia se pasa a preparacion
                             e_estadoJuego=PREPARACION; 
-                            banderas.bit.b2=0; 
                         }else{
                             srand(timerGen.read_ms());
                             aux=rand()%(500+1)+100;//se utiliza la auxiliar para guardar el tiempo aleatorio
@@ -201,7 +201,6 @@ botones[i].presion=0;
                         }
                         tAntJuego=timerGen.read_ms();
                     }
-                    
                 break;
             case PREPARACION:
                 for(i=0;i<4;i++){
@@ -242,8 +241,7 @@ botones[i].presion=0;
                             }
                             if(j==lvlAct){//si se supero el nivel actual se vuelve a mostrar la secuencia
                                 lvlAct++;
-                                banderas.bit.b4=1;//para mostrar el nuevo nivel
-                                e_estadoJuego=MSECUENCIA;
+                                e_estadoJuego=MNIVEL;
                             }
                         }
                         tAntJuego=timerGen.read_ms();
