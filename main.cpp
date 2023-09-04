@@ -67,14 +67,14 @@ BusOut LEDS(PB_6,PB_7,PB_14,PB_15);
 /* Global variables ----------------------------------------------------------*/
 const uint8_t SecIni[7]={0b1000,0b1100,0b0100,0b0110,0b0010,0b0011,0b0001};
 Timer timerGen;//timer general del programa
-uint32_t tAnt=0;//tiempo anterior tomado
-uint32_t tAntBot=0;//tiempo anterior tomado de los botones
-uint32_t tAntJuego=0;//tiempo anterior usado en el juego
+int tAnt=0;//tiempo anterior tomado
+int tAntBot=0;//tiempo anterior tomado de los botones
+int tAntJuego=0;//tiempo anterior usado en el juego
 band banderas;//conjunto de banderas para el juego
 boton botones[4];//tiene los datos de cada boton en particular
 e_simonDice e_estadoJuego;//estado actual del juego
 uint8_t secuencia[12];
-uint32_t aux=0;//esta variable auxiliar se utiliza para pasar la secuencia leida a los leds
+int aux=0;//esta variable auxiliar se utiliza para pasar la secuencia leida a los leds
 uint8_t lvl=4;
 uint8_t lvlAct=0;
 uint8_t i=0;
@@ -125,7 +125,7 @@ botones[i].presion=0;
                         e_estadoJuego=MOSTRARCANTNIVEL;
                         j=0;
                     }
-                    if(botones[0].Tpresion>=1000 && botones[0].Tpresion<=2000){
+                    if(botones[0].Tpresion>=1000 && botones[0].Tpresion<=3000){
                         botones[0].Tpresion=0;
                         e_estadoJuego=GENSEC;
                         j=0;
@@ -179,7 +179,7 @@ botones[i].presion=0;
                  if(timerGen.read_ms()-tAntJuego>=1000){
                         LEDS=LEDS | (1<<j);//hacemos la cuenta regresiva(ponemos en 1 cada led)
                         j++;
-                        if(j>=4){
+                        if(j>4){
                             j=0;
                             aux=1000;//esperamos 1000 ms antes de mostrar la secuencia
                             e_estadoJuego=MSECUENCIA;
