@@ -13,7 +13,7 @@
  * |:----------:|:-----------------------------------------------|
  * | 29/08/2023 | Creacion del documento                         |
  * | 30/08/2023 | Prueba de botones                              |
- *     
+ * | 4/09/2023  | Correccion de errores y mejora de codigo       |  
  */
 
 
@@ -163,7 +163,7 @@ botones[i].presion=0;
             case MNIVEL://se muestra el nivel actual
                         LEDS=~lvlAct;
                         if(timerGen.read_ms()-tAntJuego>=2000){
-                            e_estadoJuego=MSECUENCIA;
+                            e_estadoJuego=ENCLEDS;
                             tAntJuego=timerGen.read_ms();
                         }
                 break;
@@ -171,6 +171,7 @@ botones[i].presion=0;
                     LEDS=0b0000;//encendemos todos los leds
                     if(timerGen.read_ms()-tAntJuego>=1000){
                         j=0;
+                        e_estadoJuego=CUENTAATRAS;
                         tAntJuego=timerGen.read_ms();
                     }
                     break;
@@ -179,7 +180,6 @@ botones[i].presion=0;
                         LEDS=LEDS | (1<<j);//hacemos la cuenta regresiva(ponemos en 1 cada led)
                         j++;
                         if(j>=4){
-                            banderas.bit.b2=1;//para mostrar la secuencia
                             j=0;
                             aux=1000;//esperamos 1000 ms antes de mostrar la secuencia
                             e_estadoJuego=MSECUENCIA;
@@ -229,7 +229,6 @@ botones[i].presion=0;
                             LEDS=0b0000;//encendemos todos los leds para la secuencia final
                             banderas.bit.b3=0;
                             j=0;
-                            
                         }else{
                             
                             j++;//pasamos a comparar la siguiente parte de la secuencia
