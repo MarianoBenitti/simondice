@@ -26,7 +26,7 @@
 
 /* typedef -------------------------------------------------------------------*/
 typedef enum{UP,FALLING,RISSING,DOWN}e_estadoB;
-typedef enum{SECUENCIAINICIAL,GENSEC,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
+typedef enum{SECUENCIAINICIAL,MOSTRARCANTNIVEL,SELNIVEL,GENSEC,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
 typedef union{
     struct {
        uint8_t b0:1;//se utiliza para verificar si se esta cambiando el nivel
@@ -111,7 +111,7 @@ botones[i].presion=0;
         
         switch(e_estadoJuego){
             case SECUENCIAINICIAL:
-                    if(timerGen.read_ms()-tAntJuego>=200 && banderas.bit.b0==0){
+                    if(timerGen.read_ms()-tAntJuego>=200){
                         tAntJuego=timerGen.read_ms();
                        if(j>=7){
                         j=0;
@@ -122,22 +122,32 @@ botones[i].presion=0;
                     if(botones[1].presion){
                         tAntJuego=timerGen.read_ms();
                         botones[1].presion=0;
-                       //se que la bandera va a estar en 1 si no paso el tiempo y si ya entro una vez
-                        lvl=lvl+banderas.bit.b0;
-                        if(lvl>12){
-                            lvl=4;
-                        }
-                        LEDS=~lvl;
-                        banderas.bit.b0=1;
-                    }
-                    if(timerGen.read_ms()-tAntJuego>=2000 && banderas.bit.b0){//dejamos de cambiar nivel
-                        banderas.bit.b0=0;
+                        e_estadoJuego=MOSTRARCANTNIVEL;
                         j=0;
                     }
                     if(botones[0].Tpresion>=1000 && botones[0].Tpresion<=2000){
                         botones[0].Tpresion=0;
                         e_estadoJuego=GENSEC;
+                        j=0;
                     }
+                break;
+            case MOSTRARCANTNIVEL:
+                    LEDS=~lvl;
+                    if(timerGen.read_ms()-tAntJuego>=2000){
+                        e_estadoJuego=SECUENCIAINICIAL;
+                    }
+                     if(botones[1].presion){
+                        tAntJuego=timerGen.read_ms();
+                        botones[1].presion=0;
+                        e_estadoJuego=SELNIVEL;
+                     }
+                break;
+            case SELNIVEL:
+                    lvl++;
+                    if(lvl>12){
+                        lvl=4;
+                    }
+                    e_estadoJuego=MOSTRARCANTNIVEL;
                 break;
             case GENSEC:srand(timerGen.read_ms());
                         for(i=0;i<lvl;i++){
