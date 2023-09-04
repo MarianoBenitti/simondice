@@ -48,7 +48,7 @@ uint32_t Tpresion;//indica el tiempo que se presiono
 /* END typedef ---------------------------------------------------------------*/
 
 /* define --------------------------------------------------------------------*/
-#define SECUENCIAINI 0b1000110001000110001000110001
+
 /* END define ----------------------------------------------------------------*/
 
 /* hardware configuration ----------------------------------------------------*/
@@ -65,6 +65,7 @@ BusOut LEDS(PB_6,PB_7,PB_14,PB_15);
 
 
 /* Global variables ----------------------------------------------------------*/
+const uint8_t SecIni[7]={0b1000,0b1100,0b0100,0b0110,0b0010,0b0011,0b0001};
 Timer timerGen;//timer general del programa
 uint32_t tAnt=0;//tiempo anterior tomado
 uint32_t tAntBot=0;//tiempo anterior tomado de los botones
@@ -112,11 +113,10 @@ botones[i].presion=0;
             case SECUENCIAINICIAL:
                     if(timerGen.read_ms()-tAntJuego>=200 && banderas.bit.b0==0){
                         tAntJuego=timerGen.read_ms();
-                        j=((j+1) & 7);//si supera 7 se reinicia se le suma 1 para que solo cuente hasta 6
-                        aux=0;
-                        aux= ~SECUENCIAINI & (15<<((j-1)*4));//se le resta 1 para contrarestar el 1 que se sumo
-                        aux=aux >> (j-1)*4;
-                        LEDS = aux;
+                       if(j>=7){
+                        j=0;
+                       }
+                        LEDS = ~SecIni[j];
                         j++;
                     }
                     if(botones[1].presion){
@@ -130,7 +130,7 @@ botones[i].presion=0;
                         LEDS=~lvl;
                         banderas.bit.b0=1;
                     }
-                    if(timerGen.read_ms()-tAntJuego>=2000 && banderas.bit.b0){
+                    if(timerGen.read_ms()-tAntJuego>=2000 && banderas.bit.b0){//dejamos de cambiar nivel
                         banderas.bit.b0=0;
                         j=0;
                     }
@@ -168,11 +168,11 @@ botones[i].presion=0;
                     if(banderas.bit.b1 && timerGen.read_ms()-tAntJuego>=1000){
                         LEDS=LEDS | (1<<j);//hacemos la cuenta regresiva(ponemos en 1 cada led)
                         j++;
-                        if(j==4){
+                        if(j>=4){
                             banderas.bit.b1=0;//se finaliza la cuenta regresiva
                             banderas.bit.b2=1;//para mostrar la secuencia
                             j=0;
-                            aux=0;
+                            aux=1000;//esperamos 1000 ms antes de mostrar la secuencia
                         }
                         tAntJuego=timerGen.read_ms();
                     }
@@ -211,8 +211,10 @@ botones[i].presion=0;
                 //SE VERIFICA QUE BOTON SE PRESIONO Y SE LO COMPARA CON LA SECUENCIA
                 for(i=0;i<4;i++){
                     if(botones[i].presion){
-                        tAntJuego=timerGen.read_ms();
                         botones[i].presion=0;//anulo la presion del boton
+                        LEDS=0b1111;
+                        LEDS=LEDS & ~(1<<i);//encendemos el led presionado
+                        
                         if(i!=secuencia[j]){
                             e_estadoJuego =FINAL;
                             LEDS=0b0000;//encendemos todos los leds para la secuencia final
@@ -234,6 +236,7 @@ botones[i].presion=0;
                                 e_estadoJuego=MSECUENCIA;
                             }
                         }
+                        tAntJuego=timerGen.read_ms();
                     }
                 }
                 
@@ -292,7 +295,7 @@ void ComprobarBotones(){
                                 if((BOTONES & (1<<i))==0){
                                      botones[i].e_estadoBoton=RISSING;
                                  }
-                                //LEDS=~BOTONES | (1<<i);//COLOCAMOS EL LED ENCENDIDO SI ESTA PRESIONADO
+                                
                         break;    
                     case RISSING:if((BOTONES & (1<<i))==0){
                                     botones[i].e_estadoBoton=UP;
