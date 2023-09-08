@@ -25,13 +25,18 @@
 
 
 /* typedef -------------------------------------------------------------------*/
+
+
+
+
+
 typedef enum{UP,FALLING,RISSING,DOWN}e_estadoB;
 typedef enum{SECUENCIAINICIAL,MOSTRARCANTNIVEL,SELNIVEL,GENSEC,MNIVEL,ENCLEDS,CUENTAATRAS,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
 typedef union{
     struct {
-       uint8_t b0:1;//se utiliza para verificar si se esta cambiando el nivel
-       uint8_t b1:1;//se utiliza para saber cuando mostrar la cuenta regresiva
-       uint8_t b2:1;//se utiliza para saber cuando mostrar la secuencia
+       uint8_t b0:1;
+       uint8_t b1:1;
+       uint8_t b2:1;
        uint8_t b3:1;//se utiliza para saber si se gano o se perdio
        uint8_t b4:1;//se usa para saber si mostrar el nivel
        uint8_t b5:1;
@@ -48,7 +53,7 @@ uint32_t Tpresion;//indica el tiempo que se presiono
 /* END typedef ---------------------------------------------------------------*/
 
 /* define --------------------------------------------------------------------*/
-
+#define ISNEWBYTE banderas.bit.b1
 /* END define ----------------------------------------------------------------*/
 
 /* hardware configuration ----------------------------------------------------*/
@@ -56,11 +61,15 @@ uint32_t Tpresion;//indica el tiempo que se presiono
 DigitalOut LED(PC_13);
 BusIn BOTONES(PA_7,PA_6,PA_5,PA_4);
 BusOut LEDS(PB_6,PB_7,PB_14,PB_15);
+
+RawSerial PC(PA_9,PA_10);
+
 /* END hardware configuration ------------------------------------------------*/
 
 
 /* Function prototypes -------------------------------------------------------*/
-
+void ComprobarBotones();
+void OnRxByte();
 /* END Function prototypes ---------------------------------------------------*/
 
 
@@ -79,12 +88,58 @@ uint8_t lvl=4;
 uint8_t lvlAct=0;
 uint8_t i=0;
 uint8_t j=0;
+//generamos una variable volatile para la comunicacion
+volatile uint8_t dataByte;
+
 /* END Global variables ------------------------------------------------------*/
 
 
 /* Function prototypes user code ----------------------------------------------*/
-//comprueba el estado de los botones,y lo carga en la enumeracion correspondiente al boton
-void ComprobarBotones();
+
+void ComprobarBotones(){
+    
+    if(timerGen.read_ms()-tAntBot>=40){
+            tAntBot=timerGen.read_ms();
+            for(i=0;i<4;i++){
+                switch(botones[i].e_estadoBoton){
+                    case UP:
+                            if(BOTONES & (1<<i)){
+                                botones[i].e_estadoBoton=FALLING;
+                            }
+                        break;
+                    case FALLING:
+                            if(BOTONES & (1<<i)){
+                                botones[i].e_estadoBoton=DOWN;
+                                botones[i].presion=1;
+                                botones[i].Tpresion=timerGen.read_ms();
+                            }
+                        break;
+                    case DOWN:
+                                if((BOTONES & (1<<i))==0){
+                                     botones[i].e_estadoBoton=RISSING;
+                                 }
+                                
+                        break;    
+                    case RISSING:if((BOTONES & (1<<i))==0){
+                                    botones[i].e_estadoBoton=UP;
+                                    botones[i].Tpresion=timerGen.read_ms()-botones[i].Tpresion;//calculamos el tiempo presionado
+                                 }
+                        break;
+                    default:botones[i].e_estadoBoton=UP;
+                        break;
+                }
+
+            }
+        }
+}
+
+void OnRxByte(){
+    while (PC.readable())
+    {
+        dataByte = PC.getc();
+    }
+    ISNEWBYTE=1;
+}
 /* END Function prototypes user code ------------------------------------------*/
 
 int main()
@@ -100,7 +155,10 @@ botones[i].presion=0;
 
 /* User code -----------------------------------------------------------------*/
     timerGen.start();
-    
+    //ENLAZAMOS EL PUERTO SERIE
+    PC.baud(115200);//ASIGNAMOS LA VELOCIDAD DE COMUNICACION
+    PC.attach(&OnRxByte,SerialBase::IrqType::RxIrq);//ENLAZAMOS LA FUNCION CON EL METODO DE LECTURA
+
     while(1){
     	if(timerGen.read_ms()-tAnt>=300){
             tAnt=timerGen.read_ms();
@@ -274,45 +332,18 @@ botones[i].presion=0;
             default:e_estadoJuego=SECUENCIAINICIAL;
                 break;
         }
+
+        //GENERAMOS LA COMUNICACION CON LA PC
+        if(ISNEWBYTE){
+            if (PC.writeable()){
+                PC.putc(dataByte);
+                ISNEWBYTE=0;
+            }
+        }
+
     }
 
 /* END User code -------------------------------------------------------------*/
 }
 
 
-void ComprobarBotones(){
-    
-    if(timerGen.read_ms()-tAntBot>=40){
-            tAntBot=timerGen.read_ms();
-            for(i=0;i<4;i++){
-                switch(botones[i].e_estadoBoton){
-                    case UP:
-                            if(BOTONES & (1<<i)){
-                                botones[i].e_estadoBoton=FALLING;
-                            }
-                        break;
-                    case FALLING:
-                            if(BOTONES & (1<<i)){
-                                botones[i].e_estadoBoton=DOWN;
-                                botones[i].presion=1;
-                                botones[i].Tpresion=timerGen.read_ms();
-                            }
-                        break;
-                    case DOWN:
-                                if((BOTONES & (1<<i))==0){
-                                     botones[i].e_estadoBoton=RISSING;
-                                 }
-                                
-                        break;    
-                    case RISSING:if((BOTONES & (1<<i))==0){
-                                    botones[i].e_estadoBoton=UP;
-                                    botones[i].Tpresion=timerGen.read_ms()-botones[i].Tpresion;//calculamos el tiempo presionado
-                                 }
-                        break;
-                    default:botones[i].e_estadoBoton=UP;
-                        break;
-                }
-
-            }
-        }
-}
