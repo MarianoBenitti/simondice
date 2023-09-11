@@ -51,8 +51,8 @@ uint32_t Tpresion;//indica el tiempo que se presiono
 }boton;
 //______________________________________________________________________________
 typedef struct __attribute__((packed,aligned(1))){
-uint8_t iL;//indice de lectura
-uint8_t iE;//indice de escritura
+uint8_t iLL;//indice de lectura
+uint8_t iEL;//indice de escritura
 uint8_t estHeader;//estado del header
 uint8_t nBytes;//numero de bytes de datos
 uint8_t iDatos;//inicio de los datos en el buffer
@@ -62,8 +62,8 @@ uint8_t tamBuffer;//tamaño que limita el buffer debe ser de 2 a la n para que f
 }s_LDatos;//estructura de lectura
 
 typedef struct{
-uint8_t iE;//indice de escritura en el buffer
-uint8_t iL;//indice de lectura para transmitir los datos
+uint8_t iEE;//indice de escritura en el buffer
+uint8_t iLE;//indice de lectura para transmitir los datos
 uint8_t checksum;//checksum del comando
 uint8_t *bufE;//puntero al buffer de escritura
 uint8_t tamBuffer;//tamaño del buffer de escritura, debe ser de 2 a la n
@@ -117,6 +117,7 @@ uint8_t lvl=4;
 uint8_t lvlAct=0;
 uint8_t i=0;
 uint8_t j=0;
+
 //generamos una variable volatile para la comunicacion
 volatile uint8_t dataByte;
 //generamos el buffer de Lectura
@@ -171,9 +172,13 @@ void ComprobarBotones(){
 
 void OnRxByte(){
     while (PC.readable()){
-        dataByte = PC.getc();
+        datosLec.bufL[datosLec.iEL] = PC.getc();
+        datosLec.iEL++;
+        if (datosLec.iEL>=datosLec.tamBuffer){
+            datosLec.iEL=0;
+        }
+        //(datosLec.iEL)= (datosLec.tamBuffer) & (datosLec.iEL);//se reinicia cuando llega a 64
     }
-    ISNEWBYTE=1;
 }
 /* END Function prototypes user code ------------------------------------------*/
 
@@ -194,8 +199,8 @@ botones[i].presion=0;
     PC.baud(115200);//ASIGNAMOS LA VELOCIDAD DE COMUNICACION
     PC.attach(&OnRxByte,SerialBase::IrqType::RxIrq);//ENLAZAMOS LA FUNCION CON EL METODO DE LECTURA
     //INICIALIZAMOS BUFFER DE ENTRADA
-    datosLec.iE=0;
-    datosLec.iL=0;
+    datosLec.iEL=0;
+    datosLec.iLL=0;
     datosLec.nBytes=0;
     datosLec.iDatos=0;
     datosLec.checksum=0;
@@ -203,8 +208,8 @@ botones[i].presion=0;
     datosLec.tamBuffer=64;
     datosLec.bufL=bufferL;
     //INICIALIZAOS EL BUFFER DE SALIDA
-    datosEsc.iE=0;
-    datosEsc.iL=0;
+    datosEsc.iEE=0;
+    datosEsc.iLE=0;
     datosEsc.checksum=0;
     datosEsc.bufE=bufferE;
     datosEsc.tamBuffer=64;
@@ -383,12 +388,16 @@ botones[i].presion=0;
             default:e_estadoJuego=SECUENCIAINICIAL;
                 break;
         }
-
+        
         //GENERAMOS LA COMUNICACION CON LA PC
-        if(ISNEWBYTE){
-            if (PC.writeable()){
-                PC.putc(dataByte);
-                ISNEWBYTE=0;
+        
+        if(datosLec.iEL != datosLec.iLL){
+            while(PC.writeable()){
+                PC.putc(datosLec.bufL[datosLec.iLL]);
+                datosLec.iLL++;
+                if(datosLec.iLL>=datosLec.tamBuffer){
+                    datosLec.iLL=0;
+                }
             }
         }
 
