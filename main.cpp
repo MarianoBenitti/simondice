@@ -14,6 +14,8 @@
  * | 29/08/2023 | Creacion del documento                         |
  * | 30/08/2023 | Prueba de botones                              |
  * | 4/09/2023  | Correccion de errores y mejora de codigo       |  
+ * | 7/09/2023  | comienzo de comunicacion con la placa          |
+ * | 8/09/2023  | Comienzo armado de protocolo de comunicacion   |    
  */
 
 
@@ -25,12 +27,8 @@
 
 
 /* typedef -------------------------------------------------------------------*/
-
-
-
-
-
 typedef enum{UP,FALLING,RISSING,DOWN}e_estadoB;
+//_________________________________________________________________________________________________________________________________________
 typedef enum{SECUENCIAINICIAL,MOSTRARCANTNIVEL,SELNIVEL,GENSEC,MNIVEL,ENCLEDS,CUENTAATRAS,MSECUENCIA,PREPARACION,JUGANDO,FINAL}e_simonDice;
 typedef union{
     struct {
@@ -45,15 +43,36 @@ typedef union{
     }bit;
     uint8_t byte;
 }band;
-typedef struct {
+//______________________________________________________________________________
+typedef struct __attribute__((packed,aligned(1))){
 e_estadoB e_estadoBoton;
 uint8_t presion;//indica si el boton se presiono
 uint32_t Tpresion;//indica el tiempo que se presiono
 }boton;
+//______________________________________________________________________________
+typedef struct __attribute__((packed,aligned(1))){
+uint8_t iL;//indice de lectura
+uint8_t iE;//indice de escritura
+uint8_t estHeader;//estado del header
+uint8_t nBytes;//numero de bytes de datos
+uint8_t iDatos;//inicio de los datos en el buffer
+uint8_t *bufL;//puntero al buffer con los datos leidos
+uint8_t checksum;//checksum del comando
+uint8_t tamBuffer;//tamaño que limita el buffer debe ser de 2 a la n para que funcione correctamente la compuerta and de reinicio
+}s_LDatos;//estructura de lectura
+
+typedef struct{
+uint8_t iE;//indice de escritura en el buffer
+uint8_t iL;//indice de lectura para transmitir los datos
+uint8_t checksum;//checksum del comando
+uint8_t *bufE;//puntero al buffer de escritura
+uint8_t tamBuffer;//tamaño del buffer de escritura, debe ser de 2 a la n
+}s_EDatos;//estructura de escritura
 /* END typedef ---------------------------------------------------------------*/
 
 /* define --------------------------------------------------------------------*/
 #define ISNEWBYTE banderas.bit.b1
+#define WINORLOST banderas.bit.b3
 /* END define ----------------------------------------------------------------*/
 
 /* hardware configuration ----------------------------------------------------*/
@@ -61,14 +80,24 @@ uint32_t Tpresion;//indica el tiempo que se presiono
 DigitalOut LED(PC_13);
 BusIn BOTONES(PA_7,PA_6,PA_5,PA_4);
 BusOut LEDS(PB_6,PB_7,PB_14,PB_15);
-
 RawSerial PC(PA_9,PA_10);
 
 /* END hardware configuration ------------------------------------------------*/
 
 
 /* Function prototypes -------------------------------------------------------*/
+/** \fn ComprobarBotones
+ * \brief 
+ *  Esta funcion comprueba el estado de los 4 botones que estan dentro del bus de entrada
+ *  una vez comprobado el estado dentro de la estructura global de los botones establece el estado del boton,
+ *  si fue presionado y cuanto tiempo estubo presionado.
+ * */
 void ComprobarBotones();
+/** \fn OnRxByte
+ * \brief 
+ *  Verifica si hay algo para leer en el buffer de entrada, si hay algo para leer lo recibe y 
+ * lo pasa al buffer de memoria para poder analizarlo.
+ * */
 void OnRxByte();
 /* END Function prototypes ---------------------------------------------------*/
 
@@ -90,6 +119,13 @@ uint8_t i=0;
 uint8_t j=0;
 //generamos una variable volatile para la comunicacion
 volatile uint8_t dataByte;
+//generamos el buffer de Lectura
+uint8_t bufferL[64];
+s_LDatos datosLec;
+
+//generamos el buffer de Escritura
+uint8_t bufferE[64];
+s_EDatos datosEsc;
 
 /* END Global variables ------------------------------------------------------*/
 
@@ -134,8 +170,7 @@ void ComprobarBotones(){
 }
 
 void OnRxByte(){
-    while (PC.readable())
-    {
+    while (PC.readable()){
         dataByte = PC.getc();
     }
     ISNEWBYTE=1;
@@ -158,7 +193,21 @@ botones[i].presion=0;
     //ENLAZAMOS EL PUERTO SERIE
     PC.baud(115200);//ASIGNAMOS LA VELOCIDAD DE COMUNICACION
     PC.attach(&OnRxByte,SerialBase::IrqType::RxIrq);//ENLAZAMOS LA FUNCION CON EL METODO DE LECTURA
-
+    //INICIALIZAMOS BUFFER DE ENTRADA
+    datosLec.iE=0;
+    datosLec.iL=0;
+    datosLec.nBytes=0;
+    datosLec.iDatos=0;
+    datosLec.checksum=0;
+    datosLec.estHeader=0;
+    datosLec.tamBuffer=64;
+    datosLec.bufL=bufferL;
+    //INICIALIZAOS EL BUFFER DE SALIDA
+    datosEsc.iE=0;
+    datosEsc.iL=0;
+    datosEsc.checksum=0;
+    datosEsc.bufE=bufferE;
+    datosEsc.tamBuffer=64;
     while(1){
     	if(timerGen.read_ms()-tAnt>=300){
             tAnt=timerGen.read_ms();
@@ -271,7 +320,7 @@ botones[i].presion=0;
             case JUGANDO:
                 //SE VERIFICA QUE NO PASARON LOS 3 SEGUNDOS LIMITE
                 if(timerGen.read_ms()-tAntJuego>=3000){
-                    banderas.bit.b3=0;
+                    WINORLOST=0;
                     e_estadoJuego=FINAL;
                     LEDS=0b0000;//encendemos todos los leds para la secuencia final
                 }
@@ -285,7 +334,7 @@ botones[i].presion=0;
                         if(i!=secuencia[j]){
                             e_estadoJuego =FINAL;
                             LEDS=0b0000;//encendemos todos los leds para la secuencia final
-                            banderas.bit.b3=0;
+                            WINORLOST=0;
                             j=0;
                         }else{
                             
@@ -293,7 +342,7 @@ botones[i].presion=0;
                             if(j==(lvl)){//si se supero el ultimo nivel se termina el juego
                                 e_estadoJuego=FINAL;
                                 LEDS=0b0000;//encendemos todos los leds para la secuencia final
-                                banderas.bit.b3=1;
+                                WINORLOST=1;
                                 j=0;
                             }
                             if(j==lvlAct){//si se supero el nivel actual se vuelve a mostrar la secuencia
@@ -306,7 +355,7 @@ botones[i].presion=0;
                 }
                 
                 break;
-            case FINAL:if(banderas.bit.b3){
+            case FINAL:if(WINORLOST){
                             //si se gano
                             if(timerGen.read_ms()-tAntJuego>=500){
                                 tAntJuego=timerGen.read_ms();
@@ -315,6 +364,7 @@ botones[i].presion=0;
                             }
                             if(j==4){
                             e_estadoJuego=SECUENCIAINICIAL;
+                            WINORLOST=0;
                             }
                         }else{
                             //si se perdio
@@ -325,6 +375,7 @@ botones[i].presion=0;
                             }
                             if(j==20){
                             e_estadoJuego=SECUENCIAINICIAL;
+                            WINORLOST=0;
                             }
                         }
                         
